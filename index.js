@@ -34,7 +34,7 @@ client.on('ready', () => {
 
 let vipKeys = JSON.parse(fs.readFileSync("./vipKeys.json", "utf8"));
 let giftKeys = {};
-let devs = ["ايدي حسابك هنا"];
+let devs = ["1435960918352859186"];
 let prefix = "!";
 
 client.on('messageCreate', async msg => { 
