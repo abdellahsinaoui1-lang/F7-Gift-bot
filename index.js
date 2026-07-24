@@ -1,4 +1,4 @@
-const { MessageEmbed } = require('discord.js');
+const { MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
 const Discord = require("discord.js");
 require('dotenv').config();
 const client = new Discord.Client({
@@ -67,66 +67,120 @@ client.on('messageCreate', async msg => {
       return msg.reply({ embeds: [embed] });
     }
 
+    const row = new MessageActionRow()
+      .addComponents(
+        new MessageButton()
+          .setCustomId('gift_to_self')
+          .setLabel('هدية لنفسك')
+          .setEmoji('🎁')
+          .setStyle('SECONDARY'),
+        new MessageButton()
+          .setCustomId('gift_to_other')
+          .setLabel('هدية لشخص آخر')
+          .setEmoji('👭')
+          .setStyle('SECONDARY')
+      );
+
     const embed = new MessageEmbed()
       .setColor("#42f4f4")
-      .setTitle(`:ok_hand: - **تم ارسآل الكود على الخاص**`);
-    await msg.reply({ embeds: [embed] });
+      .setDescription('هدية لنفسك 🎁 : سيتم ارسال الكود الرتبة الخاص بك الذي حددته اليك \n هدية لشخص آخر 👭: بعد ماتقوم بالضغط على هذا الخيار سيجب عليك منشن الشخص الذي تريد اعطاءه  كود الهدية للرتبة')
+      .setTitle(`اختر نوع الهدية:`);
+      
+    await msg.reply({ embeds: [embed], components: [row] });
 
-    const gift = generateKey(16);
-    vipKeys[gift] = role;
-    giftKeys[gift] = role;
+    client.on('interactionCreate', async interaction => {
+      if (!interaction.isButton()) return;
 
-    const embed2 = new MessageEmbed()
-      .setAuthor(msg.author.username, msg.author.displayAvatarURL({ dynamic: true }))
-      .setThumbnail(msg.author.displayAvatarURL({ dynamic: true }))
-      .addFields(
-        { name: "**Key Of Gift**", value: gift, inline: true },
-        { name: "Role", value: giftKeys[gift].name, inline: true },
-        { name: "This Key Made by", value: msg.author.toString(), inline: true },
-        { name: "The Room", value: msg.channel.toString(), inline: true }
-      )
-      .setTimestamp()
-      .setFooter(client.user.username, client.user.displayAvatarURL({ dynamic: true }));
+      const { customId, user } = interaction;
 
-    await msg.author.send({ embeds: [embed2] });
-    save();
-  } else if (cmd === 'use') {
-    const key = args[0];
+      if (customId === 'gift_to_self') {
+        const gift = generateKey(16);
+        vipKeys[gift] = role;
+        giftKeys[gift] = role;
 
-    if (!key) {
-      const embed = new MessageEmbed()
-        .setColor("#42f4f4")
-        .setTitle(`:x: - **الرجاء ادخال كود الهدية** \`${prefix}use <Key>\``);
-      return msg.reply({ embeds: [embed] });
-    }
+        const embed2 = new MessageEmbed()
+          .setAuthor(user.username, user.displayAvatarURL({ dynamic: true }))
+          .setThumbnail(user.displayAvatarURL({ dynamic: true }))
+          .addFields(
+            { name: "**Key Of Gift**", value: gift, inline: true },
+            { name: "Role", value: giftKeys[gift].name, inline: true },
+            { name: "This Key Made by", value: user.toString(), inline: true },
+            { name: "The Room", value: interaction.channel.toString(), inline: true }
+          )
+          .setTimestamp()
+          .setFooter(client.user.username, client.user.displayAvatarURL({ dynamic: true }));
 
-    if (vipKeys[key]) {
-      const role = msg.guild.roles.cache.find(role => role.name === vipKeys[key].name);
-      console.log(role);
-      if (msg.member.roles.cache.has(role.id)) {
-        const embed = new MessageEmbed()
-          .setTitle(`:x: - **انت تمتلك هذه الرتبة مسبقًا**  \`${vipKeys[key].name}\``)
-          .setColor("#42f4f4");
-        return msg.channel.send({ embeds: [embed] });
+        await user.send({ embeds: [embed2] });
+        await interaction.reply({ content: 'تم إرسال الكود على الخاص.', ephemeral: true });
+        save();
+      } else if (customId === 'gift_to_other') {
+        await interaction.reply({ content: 'منشن الشخص الذي تريد إعطاءه الكود.', ephemeral: true });
+        const filter = response => response.author.id === user.id;
+        const collected = await interaction.channel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+
+        const mention = collected.first().mentions.users.first();
+        if (!mention) {
+          return interaction.followUp({ content: 'لم يتم منشن أي شخص.', ephemeral: true });
+        }
+
+        const gift = generateKey(16);
+        vipKeys[gift] = role;
+        giftKeys[gift] = role;
+
+        const embed2 = new MessageEmbed()
+          .setAuthor(user.username, user.displayAvatarURL({ dynamic: true }))
+          .setThumbnail(user.displayAvatarURL({ dynamic: true }))
+          .addFields(
+            { name: "**Key Of Gift**", value: gift, inline: true },
+            { name: "Role", value: giftKeys[gift].name, inline: true },
+            { name: "This Key Made by", value: user.toString(), inline: true },
+            { name: "The Room", value: interaction.channel.toString(), inline: true }
+          )
+          .setTimestamp()
+          .setFooter(client.user.username, client.user.displayAvatarURL({ dynamic: true }));
+
+        await mention.send({ embeds: [embed2] });
+        await interaction.followUp({ content: `تم إرسال الكود إلى ${mention.tag} في الخاص.`, ephemeral: true });
+        save();
       }
+    })
+} else if (cmd === 'use') {
+  const key = args[0];
 
-      const embed = new MessageEmbed()
-        .setTitle(`:tada: - **مبروك تم اعطائك رتبة** \`${vipKeys[key].name}\``)
-        .setColor("#42f4f4");
-      await msg.channel.send({ embeds: [embed] });
-
-      await msg.member.roles.add(role)
-        .catch(console.error);
-
-      delete vipKeys[key];
-      save();
-    } else {
-      const embed = new MessageEmbed()
-        .setTitle(`:x: - **الكود غير صيحيح أو انه مستعمل من قبل**`)
-        .setColor("#42f4f4");
-      msg.channel.send({ embeds: [embed] });
-    }
+  if (!key) {
+    const embed = new MessageEmbed()
+      .setColor("#42f4f4")
+      .setTitle(`:x: - **الرجاء ادخال كود الهدية** \`${prefix}use <Key>\``);
+    return msg.reply({ embeds: [embed] });
   }
+
+  if (vipKeys[key]) {
+    const role = msg.guild.roles.cache.find(role => role.name === vipKeys[key].name);
+    console.log(role);
+    if (msg.member.roles.cache.has(role.id)) {
+      const embed = new MessageEmbed()
+        .setTitle(`:x: - **انت تمتلك هذه الرتبة مسبقًا**  \`${vipKeys[key].name}\``)
+        .setColor("#42f4f4");
+      return msg.channel.send({ embeds: [embed] });
+    }
+
+    const embed = new MessageEmbed()
+      .setTitle(`:tada: - **مبروك تم اعطائك رتبة** \`${vipKeys[key].name}\``)
+      .setColor("#42f4f4");
+    await msg.channel.send({ embeds: [embed] });
+
+    await msg.member.roles.add(role)
+      .catch(console.error);
+
+    delete vipKeys[key];
+    save();
+  } else {
+    const embed = new MessageEmbed()
+      .setTitle(`:x: - **الكود غير صيحيح أو انه مستعمل من قبل**`)
+      .setColor("#42f4f4");
+    msg.channel.send({ embeds: [embed] });
+  }
+}
 });
 
 function generateKey(length) {
